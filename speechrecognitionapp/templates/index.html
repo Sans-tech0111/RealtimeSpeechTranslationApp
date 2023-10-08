@@ -1,0 +1,149 @@
+{% load static %}
+<!DOCTYPE html>
+
+<html>
+<head>
+    <title>Real-time Speech Recognition</title>
+    <link rel="stylesheet" href="{% static 'style.css' %}">
+    <link rel="icon" href="{% static 'translate.ico' %}" type="image/x-icon">
+</head>
+
+<body>
+    <div class="container">
+        <div class="background"></div>
+
+            <button class="btn" id="start-recording"><h3>Start Listening</h3></button>
+            <button class="btn" id="stop-recording" style="display: none;"><h3>Stop Listening</h3></button>
+      
+        <div class="cont2">
+
+            <label for="language-select">Select Primary Language</label>
+            <select id="language-select" >
+                <option value="en-US">English (US)</option>
+                <option value="mr-IN">Marathi</option>
+                <option value="hi-IN">Hindi</option>
+                <option value="es-ES">Spanish</option>
+                <option value="fr">French</option>
+                <option value="de">German</option>
+                <option value="it">Italian</option>
+                <option value="ja">Japanese</option>
+                <option value="ru">Russian</option>
+                <option value="zh-CN">Chinese</option>
+            </select>
+            <label for="translate-into">Translate to</label>
+            <select id="translate-into" >
+                <option value="en">English (US)</option>
+                <option value="mr">Marathi</option>
+                <option value="hi">Hindi</option>
+                <option value="es">Spanish</option>
+                <option value="fr">French</option>
+                <option value="de">German</option>
+                <option value="it">Italian</option>
+                <option value="ja">Japanese</option>
+                <option value="ru">Russian</option>
+                <option value="zh-CN">Chinese</option>
+            </select>
+
+        </div>
+        <div class="cont3">
+            <div class="txt" id="recognized-text-content"></div>
+            <div class="txt" id="translated-text-content"></div>
+        </div>
+        
+    </div>
+
+    <script>
+        const startRecordingButton = document.getElementById('start-recording');
+        const stopRecordingButton = document.getElementById('stop-recording');
+        const recognizedTextContent = document.getElementById('recognized-text-content');
+        const languageSelect = document.getElementById('language-select');
+        const translateTo = document.getElementById('translate-into');
+        const translatedTextContent = document.getElementById('translated-text-content');
+
+
+        const recognition = new webkitSpeechRecognition(); // Use the Webkit version for compatibility
+
+        // var textdata = '';
+        recognition.continuous = true; // Enable continuous recognition
+        recognition.interimResults = true; // Get interim results
+
+        recognition.lang = languageSelect.value;
+        
+        recognition.onresult = (event) => {
+            let interimTranscript = '';
+            let finalTranscript = '';
+
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const transcript = event.results[i][0].transcript;
+                if (event.results[i].isFinal) {
+                    finalTranscript += transcript + ' ';
+                } else {
+                    interimTranscript += transcript;
+                }
+            }
+
+            recognizedTextContent.innerHTML = finalTranscript || interimTranscript;
+            // textdata = finalTranscript || interimTranscript;
+            sendTextToServer(finalTranscript || interimTranscript,translateTo.value);
+            
+        };
+
+        const csrfToken = getCookie('csrftoken');
+
+        function sendTextToServer(text,tlang){
+
+            console.log(JSON.stringify({ text: text }));
+            fetch('/translate/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+            },
+            body:
+                JSON.stringify({ text: text, trans: tlang })
+        })
+            .then((response) => response.json())
+            .then((data) => {
+                // Handle the server response (translated text)
+                console.log('Translated Text:', data.translated_text);
+                // You can update the UI with the translated text if needed
+                translatedTextContent.innerHTML = data.translated_text;
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+    }
+
+        recognition.onend = () => {
+            // Handle end of recognition (e.g., reset UI)
+            startRecordingButton.style.display = 'block'
+            stopRecordingButton.style.display = 'none'
+        };
+
+        startRecordingButton.addEventListener('click', () => {
+                recognition.start();
+                startRecordingButton.style.display = 'none'
+                stopRecordingButton.style.display = 'block'
+            
+        });
+
+        stopRecordingButton.addEventListener('click', () => {
+            recognition.stop();
+            startRecordingButton.style.display = 'block'
+            stopRecordingButton.style.display = 'none'
+            // sendTextToServer(textdata);
+        });
+
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+}
+
+        languageSelect.addEventListener('change', () => {
+        recognition.lang = languageSelect.value;
+        console.log(`Language set to: ${languageSelect.value}`);
+        });
+    </script>
+</body>
+</html>
